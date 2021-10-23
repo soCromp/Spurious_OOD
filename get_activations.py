@@ -50,7 +50,6 @@ parser.add_argument('--manualSeed', type=int, help='manual seed')
 parser.add_argument('--multi-gpu', default=False, type=bool)
 parser.add_argument('--local_rank', default=-1, type=int,
                         help='rank for the current node')
-parser.add_argument('--top', '-t', default=0, help='number of top neurons to use')
 
 args = parser.parse_args()
 
@@ -69,92 +68,50 @@ if torch.cuda.is_available():
 device = torch.device(f"cuda" if torch.cuda.is_available() else "cpu")
 
 
-def get_ood_energy(args, model, val_loader, epoch, log, method, mask):
-    in_energy = AverageMeter()
+def get_ood_activations(args, model, val_loader, epoch, log, method):
+    activations = []
+    activations_np = torch.tensor([])
 
-    def edit_activation(mask, mod, inp, out):
-        return torch.mul(mask, out)
+    def save_activation(activations, mod, inp, out):
+        activations.append(inp[0]) 
 
-    model.avgpool.register_forward_hook(partial(edit_activation, mask))
-
-
-    model.eval()
-    init = True
-    log.debug("######## Start collecting energy score ########")
-    with torch.no_grad():
-        for i, (images, labels) in enumerate(val_loader):
-            images = images.cuda()
-            _, outputs = model(images)
-            e_s = -torch.logsumexp(outputs, dim=1)
-            e_s = e_s.data.cpu().numpy() 
-            in_energy.update(e_s.mean(), len(labels))
-            if init:
-                sum_energy = e_s
-                init = False
-            else:
-                sum_energy = np.concatenate((sum_energy, e_s))
-            if i % args.print_freq == 0: 
-                log.debug('Epoch: [{0}] Batch#[{1}/{2}]\t'
-                    'Energy Sum {in_energy.val:.4f} ({in_energy.avg:.4f})'.format(
-                        epoch, i, len(val_loader), in_energy=in_energy))
-        return sum_energy
-
-def get_id_energy(args, model, val_loader, epoch, log, method, mask):
-    in_energy = AverageMeter()
-    top1 = AverageMeter()
-    env_E = {0:AverageMeter(),
-            1: AverageMeter(),
-            2: AverageMeter(),
-            3: AverageMeter() }
-    NUM_ENV = 4
-    all_preds = torch.tensor([])
-    all_targets = torch.tensor([])
-    energy = np.empty(0)
-    energy_grey = np.empty(0)
-    energy_nongrey = np.empty(0)
-
-    def edit_activation(mask, mod, inp, out):
-        return torch.mul(mask, out)
-
-    model.avgpool.register_forward_hook(partial(edit_activation, mask))
+    model.linear.register_forward_hook(partial(save_activation, activations))
 
     model.eval()
-    log.debug("######## Start collecting energy score ########")
+    log.debug("######## Start collecting activations ########")
     with torch.no_grad():
-        for i, (images, labels, envs) in enumerate(val_loader):
+        for i, (images, labels) in enumerate(val_loader): # batch
             images = images.cuda()
             _, outputs = model(images)
-            all_targets = torch.cat((all_targets, labels),dim=0)
-            all_preds = torch.cat((all_preds, outputs.argmax(dim=1).cpu()),dim=0)
-            prec1 = accuracy(outputs.cpu().data, labels, topk=(1,))[0]
-            top1.update(prec1, images.size(0))
-            e_s = -torch.logsumexp(outputs, dim=1)
-            e_s = e_s.data.cpu().numpy() 
-            for j in range(NUM_ENV):
-                env_E[j].update(e_s[envs == j].mean(), len(labels[envs == j]))
-            in_energy.update(e_s.mean(), len(labels)) 
-            energy = np.concatenate((energy, e_s))
-            energy_grey = np.concatenate((energy_grey, e_s[labels == 1]))
-            energy_nongrey = np.concatenate((energy_nongrey, e_s[labels == 0]))
-            if i % args.print_freq == 0:
-                if args.in_dataset == 'color_mnist': 
-                    log.debug('Epoch: [{0}] Batch#[{1}/{2}]\t'
-                    'ID Energy {in_energy.val:.4f} ({in_energy.avg:.4f})\t'
-                    'red 0 {env_E[0].val:.4f} ({env_E[0].avg:.4f})\t'
-                    'green 0 {env_E[1].val:.4f} ({env_E[1].avg:.4f})\t'
-                    'red 1 {env_E[2].val:.4f} ({env_E[2].avg:.4f})\t'
-                    'green 1 {env_E[3].val:.4f} ({env_E[3].avg:.4f})\t'.format(
-                        epoch, i, len(val_loader), in_energy=in_energy, env_E = env_E))
-                elif args.in_dataset == 'celebA': 
-                    log.debug('Epoch: [{0}] Batch#[{1}/{2}]\t'
-                    'ID Energy {in_energy.val:.4f} ({in_energy.avg:.4f})\t'
-                    'nongrey hair F {env_E[0].val:.4f} ({env_E[0].avg:.4f})\t'
-                    'nongrey hair M {env_E[1].val:.4f} ({env_E[1].avg:.4f})\t'
-                    'gray hair F {env_E[2].val:.4f} ({env_E[2].avg:.4f})\t'
-                    'gray hair M {env_E[3].val:.4f} ({env_E[3].avg:.4f})\t'.format(
-                        epoch, i, len(val_loader), in_energy=in_energy, env_E = env_E))
-        log.debug(' * Prec@1 {top1.avg:.3f}'.format(top1=top1))
-        return energy, energy_grey, energy_nongrey
+            
+            batchtivations = activations[-1].cpu() # get activations from this batch
+            activations_np = torch.cat([activations_np, batchtivations], axis=0) # add to final structure
+            
+    print('OOD examples', activations_np.shape[0])
+    return activations_np
+
+def get_id_activations(args, model, val_loader, epoch, log, method):
+    activations = []
+    activations_np = torch.tensor([])
+
+    def save_activation(activations, mod, inp, out):
+        activations.append(inp[0]) 
+
+    model.linear.register_forward_hook(partial(save_activation, activations))
+
+    model.eval()
+    log.debug("######## Start collecting activations ########")
+    with torch.no_grad():
+        for i, (images, labels, envs) in enumerate(val_loader): # batch
+            images = images.cuda()
+            _, outputs = model(images)
+            
+            batchtivations = activations[-1].cpu() # get activations from this batch, filter by desired class/environment
+            activations_np = torch.cat([activations_np, batchtivations], axis=0) # add to final structure
+            
+        
+    print('ID examples', activations_np.shape[0])
+    return activations_np
 
 
 def get_ood_loader(args, out_dataset, in_dataset = 'color_mnist'):
@@ -214,24 +171,6 @@ def get_ood_loader(args, out_dataset, in_dataset = 'color_mnist'):
         return testloaderOut
 
 
-def getmask(top, dataset, name, exp, epoch):
-    if top == 0:
-        return torch.ones([1, 512, 1, 1])
-    
-    file = os.path.join('activations', dataset, name, exp, 'activations_id_at_epoch_{epoch}.npy'.format(epoch=epoch))
-    with open(file, 'rb') as f:
-        acs = np.load(f)
-    a = acs.mean(axis=0) # average ID activation pattern
-
-    order = np.argsort(a) # find which units are most "important"/contributing
-    
-    topinds = order[-top:]  # get just the top of these units
-    mask = np.zeros(a.shape) # form a mask to only include top units
-    mask[topinds] = 1
-
-    mask = np.reshape(mask, [1, 512, 1, 1]) # to match with GAP layer output shape
-    return mask
-
 def main():
     log = logging.getLogger(__name__)
     formatter = logging.Formatter('%(asctime)s : %(message)s')
@@ -244,16 +183,9 @@ def main():
     log.addHandler(streamHandler) 
 
 
-    if args.in_dataset == "color_mnist":
-        val_loader = get_biased_mnist_dataloader(args, root = './datasets/MNIST', batch_size=args.batch_size,
-                                            data_label_correlation= args.data_label_correlation,
-                                            n_confusing_labels= args.num_classes - 1,
-                                            train=False, partial=True, cmap = "1")
-    elif args.in_dataset == "waterbird":
+    if args.in_dataset == "waterbird":
         val_dataset = WaterbirdDataset(data_correlation=args.data_label_correlation, split='test')
         val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=True)
-    elif args.in_dataset == "celebA":
-        val_loader = get_celebA_dataloader(args, split='test')
 
     # create model
     if args.model_arch == 'resnet18':
@@ -262,24 +194,11 @@ def main():
     model = model.cuda()
 
     test_epochs = args.test_epochs.split()
-
-    top = 0
-    mask = getmask(top, args.in_dataset, args.name, args.exp_name, test_epochs[0]).cuda()
-
+    if args.in_dataset == 'waterbird':
+        out_datasets = ['placesbg', 'SVHN']
+        # out_datasets = ['gaussian', 'water', 'SVHN', 'iSUN', 'LSUN_resize', 'dtd']
     
-    if args.in_dataset == 'color_mnist':
-        out_datasets = ['partial_color_mnist_0&1', 'gaussian', 'dtd', 'iSUN', 'LSUN_resize']
-    elif args.in_dataset == 'waterbird':
-        out_datasets = ['placesbg', 'SVHN', 'iSUN', 'LSUN_resize', ]#'dtd']
-    elif args.in_dataset == 'color_mnist_multi':
-        out_datasets = ['partial_color_mnist_0&1']
-    elif args.in_dataset == 'celebA':
-        out_datasets = ['celebA_ood', 'gaussian', 'SVHN', 'iSUN', 'LSUN_resize']
-
-    if args.in_dataset == 'color_mnist':
-        cpts_directory = "./checkpoints/{in_dataset}/{name}/{exp}".format(in_dataset=args.in_dataset, name=args.name, exp=args.exp_name)
-    else:
-        cpts_directory = "./checkpoints/{in_dataset}/{name}/{exp}".format(in_dataset=args.in_dataset, name=args.name, exp=args.exp_name)
+    cpts_directory = "./checkpoints/{in_dataset}/{name}/{exp}".format(in_dataset=args.in_dataset, name=args.name, exp=args.exp_name)
     
     for test_epoch in test_epochs:
         cpts_dir = os.path.join(cpts_directory, "checkpoint_{epochs}.pth.tar".format(epochs=test_epoch))
@@ -292,24 +211,25 @@ def main():
                 new_state_dict[k] = v
             state_dict = new_state_dict
         model.load_state_dict(state_dict)
+
         model.eval()
         model.cuda()
-        save_dir =  f"./energy_results/{args.in_dataset}/{args.name}/{args.exp_name}"
+        save_dir =  f"./activations/{args.in_dataset}/{args.name}/{args.exp_name}"
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
         print("processing ID dataset")
 
         #********** normal procedure **********
-        id_energy, _, _  = get_id_energy(args, model, val_loader, test_epoch, log, method=args.method, mask=mask)
-        with open(os.path.join(save_dir, f'energy_score_at_epoch_{test_epoch}.npy'), 'wb') as f:
-            np.save(f, id_energy)
+        id_activs = get_id_activations(args, model, val_loader, test_epoch, log, method=args.method)
+        with open(os.path.join(save_dir, f'activations_id_at_epoch_{test_epoch}.npy'), 'wb') as f:
+            np.save(f, id_activs.cpu())
         for out_dataset in out_datasets:
             print("processing OOD dataset ", out_dataset)
             testloaderOut = get_ood_loader(args, out_dataset, args.in_dataset)
-            ood_energy = get_ood_energy(args, model, testloaderOut, test_epoch, log, method=args.method, mask=mask)
-            with open(os.path.join(save_dir, f'energy_score_{out_dataset}_at_epoch_{test_epoch}.npy'), 'wb') as f:
-                np.save(f, ood_energy)
+            ood_activs = get_ood_activations(args, model, testloaderOut, test_epoch, log, method=args.method)
+            with open(os.path.join(save_dir, f'activations_{out_dataset}_at_epoch_{test_epoch}.npy'), 'wb') as f:
+                np.save(f, ood_activs.cpu())
 
-if __name__ == '__main__':
+if __name__ == '__main__': 
+    #--gpu-ids 0 --in-dataset waterbird --model resnet18 --test_epochs 30 --data_label_correlation 0.9 --method erm
     main()
-
