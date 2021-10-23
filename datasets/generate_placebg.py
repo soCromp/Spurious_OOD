@@ -12,8 +12,8 @@ places_dir = '/nobackup/sonic/places365_standard'
 output_dir = 'datasets/ood_datasets'
 
 target_places = [
-    ['bamboo_forest', 'forest/broadleaf'],  # Land backgrounds
-    ['ocean', 'lake/natural']]              # Water backgrounds
+    ['bamboo_forest', 'forest'],  # Land backgrounds
+    ['ocean', 'lake']]              # Water backgrounds
 
 confounder_strength = 0.6 # Determines relative size of majority vs. minority groups
 dataset_name = 'placesbg'
