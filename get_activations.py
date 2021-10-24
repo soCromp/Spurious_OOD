@@ -223,12 +223,12 @@ def main():
         id_activs = get_id_activations(args, model, val_loader, test_epoch, log, method=args.method)
         with open(os.path.join(save_dir, f'activations_id_at_epoch_{test_epoch}.npy'), 'wb') as f:
             np.save(f, id_activs.cpu())
-        for out_dataset in out_datasets:
-            print("processing OOD dataset ", out_dataset)
-            testloaderOut = get_ood_loader(args, out_dataset, args.in_dataset)
-            ood_activs = get_ood_activations(args, model, testloaderOut, test_epoch, log, method=args.method)
-            with open(os.path.join(save_dir, f'activations_{out_dataset}_at_epoch_{test_epoch}.npy'), 'wb') as f:
-                np.save(f, ood_activs.cpu())
+        # for out_dataset in out_datasets:
+        #     print("processing OOD dataset ", out_dataset)
+        #     testloaderOut = get_ood_loader(args, out_dataset, args.in_dataset)
+        #     ood_activs = get_ood_activations(args, model, testloaderOut, test_epoch, log, method=args.method)
+        #     with open(os.path.join(save_dir, f'activations_{out_dataset}_at_epoch_{test_epoch}.npy'), 'wb') as f:
+        #         np.save(f, ood_activs.cpu())
 
 if __name__ == '__main__': 
     #--gpu-ids 0 --in-dataset waterbird --model resnet18 --test_epochs 30 --data_label_correlation 0.9 --method erm

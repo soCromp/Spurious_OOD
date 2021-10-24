@@ -50,7 +50,7 @@ parser.add_argument('--manualSeed', type=int, help='manual seed')
 parser.add_argument('--multi-gpu', default=False, type=bool)
 parser.add_argument('--local_rank', default=-1, type=int,
                         help='rank for the current node')
-parser.add_argument('--top', '-t', default=0, help='number of top neurons to use')
+parser.add_argument('--top', '-t', default=0, type=int, help='number of top neurons to use')
 
 args = parser.parse_args()
 
@@ -226,11 +226,11 @@ def getmask(top, dataset, name, exp, epoch):
     order = np.argsort(a) # find which units are most "important"/contributing
     
     topinds = order[-top:]  # get just the top of these units
-    mask = np.zeros(a.shape) # form a mask to only include top units
-    mask[topinds] = 1
+    mask = np.zeros(a.shape, dtype=np.float64) # form a mask to only include top units
+    mask[topinds] = 1.0
 
     mask = np.reshape(mask, [1, 512, 1, 1]) # to match with GAP layer output shape
-    return mask
+    return torch.from_numpy(mask).float()
 
 def main():
     log = logging.getLogger(__name__)
@@ -263,7 +263,7 @@ def main():
 
     test_epochs = args.test_epochs.split()
 
-    top = 0
+    top = args.top
     mask = getmask(top, args.in_dataset, args.name, args.exp_name, test_epochs[0]).cuda()
 
     
@@ -301,13 +301,13 @@ def main():
 
         #********** normal procedure **********
         id_energy, _, _  = get_id_energy(args, model, val_loader, test_epoch, log, method=args.method, mask=mask)
-        with open(os.path.join(save_dir, f'energy_score_at_epoch_{test_epoch}.npy'), 'wb') as f:
+        with open(os.path.join(save_dir, f'energy_score_at_epoch_{test_epoch}_top{args.top}.npy'), 'wb') as f:
             np.save(f, id_energy)
         for out_dataset in out_datasets:
             print("processing OOD dataset ", out_dataset)
             testloaderOut = get_ood_loader(args, out_dataset, args.in_dataset)
             ood_energy = get_ood_energy(args, model, testloaderOut, test_epoch, log, method=args.method, mask=mask)
-            with open(os.path.join(save_dir, f'energy_score_{out_dataset}_at_epoch_{test_epoch}.npy'), 'wb') as f:
+            with open(os.path.join(save_dir, f'energy_score_{out_dataset}_at_epoch_{test_epoch}_top{args.top}.npy'), 'wb') as f:
                 np.save(f, ood_energy)
 
 if __name__ == '__main__':
