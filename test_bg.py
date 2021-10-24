@@ -23,7 +23,7 @@ from datasets.gaussian_dataset import GaussianDataset
 
 parser = argparse.ArgumentParser(description='OOD Detection Evaluation based on Energy-score')
 parser.add_argument('--name', default = 'erm_rebuttal', type=str, help='help identify checkpoint')
-parser.add_argument('--exp_name', '-n', default = 'erm_new_0.7', type=str, help='name of experiment')
+# parser.add_argument('--exp_name', '-n', default = 'erm_new_0.7', type=str, help='name of experiment')
 parser.add_argument('--in-dataset', default="celebA", type=str, help='name of the in-distribution dataset')
 parser.add_argument('--root_dir', required = True, type=str, help='the root directory that contains the OOD test datasets')
 parser.add_argument('--model-arch', default='resnet18', type=str, help='model architecture e.g. resnet18')
@@ -214,11 +214,11 @@ def get_ood_loader(args, out_dataset, in_dataset = 'color_mnist'):
         return testloaderOut
 
 
-def getmask(top, dataset, name, exp, epoch):
+def getmask(top, dataset, name, epoch):
     if top == 0:
         return torch.ones([1, 512, 1, 1])
     
-    file = os.path.join('activations', dataset, name, exp, 'activations_id_at_epoch_{epoch}.npy'.format(epoch=epoch))
+    file = os.path.join('experiments', dataset, name, 'activations/activations_id_at_epoch_{epoch}.npy'.format(epoch=epoch))
     with open(file, 'rb') as f:
         acs = np.load(f)
     a = acs.mean(axis=0) # average ID activation pattern
@@ -230,6 +230,7 @@ def getmask(top, dataset, name, exp, epoch):
     mask[topinds] = 1.0
 
     mask = np.reshape(mask, [1, 512, 1, 1]) # to match with GAP layer output shape
+    print(mask.sum())
     return torch.from_numpy(mask).float()
 
 def main():
@@ -264,7 +265,7 @@ def main():
     test_epochs = args.test_epochs.split()
 
     top = args.top
-    mask = getmask(top, args.in_dataset, args.name, args.exp_name, test_epochs[0]).cuda()
+    mask = getmask(top, args.in_dataset, args.name, test_epochs[0]).cuda()
 
     
     if args.in_dataset == 'color_mnist':
@@ -276,10 +277,10 @@ def main():
     elif args.in_dataset == 'celebA':
         out_datasets = ['celebA_ood', 'gaussian', 'SVHN', 'iSUN', 'LSUN_resize']
 
-    if args.in_dataset == 'color_mnist':
-        cpts_directory = "./checkpoints/{in_dataset}/{name}/{exp}".format(in_dataset=args.in_dataset, name=args.name, exp=args.exp_name)
-    else:
-        cpts_directory = "./checkpoints/{in_dataset}/{name}/{exp}".format(in_dataset=args.in_dataset, name=args.name, exp=args.exp_name)
+    # if args.in_dataset == 'color_mnist':
+    cpts_directory = "./experiments/{in_dataset}/{name}/checkpoints".format(in_dataset=args.in_dataset, name=args.name)
+    # else:
+    #     cpts_directory = "./checkpoints/{in_dataset}/{name}/{exp}".format(in_dataset=args.in_dataset, name=args.name, exp=args.exp_name)
     
     for test_epoch in test_epochs:
         cpts_dir = os.path.join(cpts_directory, "checkpoint_{epochs}.pth.tar".format(epochs=test_epoch))
@@ -294,7 +295,7 @@ def main():
         model.load_state_dict(state_dict)
         model.eval()
         model.cuda()
-        save_dir =  f"./energy_results/{args.in_dataset}/{args.name}/{args.exp_name}"
+        save_dir =  f"./experiments/{args.in_dataset}/{args.name}/energy_results"
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
         print("processing ID dataset")

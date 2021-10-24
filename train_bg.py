@@ -49,8 +49,8 @@ parser.add_argument('--weight-decay', '--wd', default=0.005, type=float,
 parser.add_argument('--data_label_correlation', default=0.9, type=float,
                     help='data_label_correlation')
 # saving, naming and logging
-parser.add_argument('--exp-name', default = 'erm_new_0.9', type=str, 
-                    help='help identify checkpoint')
+# parser.add_argument('--exp-name', default = 'erm_new_0.9', type=str, 
+#                     help='help identify checkpoint')
 parser.add_argument('--name', default="erm_rebuttal", type=str,
                     help='name of experiment')
 parser.add_argument('--log_name', type = str, default = "info.log",
@@ -78,8 +78,8 @@ args = parser.parse_args()
 
 state = {k: v for k, v in args._get_kwargs()}
 
-directory = "checkpoints/{in_dataset}/{name}/{exp}/".format(in_dataset=args.in_dataset, 
-            name=args.name, exp=args.exp_name)
+directory = "./experiments/{in_dataset}/{name}/checkpoints/".format(in_dataset=args.in_dataset, 
+            name=args.name)
 os.makedirs(directory, exist_ok=True)
 save_state_file = os.path.join(directory, 'args.txt')
 fw = open(save_state_file, 'w')

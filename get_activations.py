@@ -198,7 +198,7 @@ def main():
         out_datasets = ['placesbg', 'SVHN']
         # out_datasets = ['gaussian', 'water', 'SVHN', 'iSUN', 'LSUN_resize', 'dtd']
     
-    cpts_directory = "./checkpoints/{in_dataset}/{name}/{exp}".format(in_dataset=args.in_dataset, name=args.name, exp=args.exp_name)
+    cpts_directory = "./experiments/{in_dataset}/{name}/checkpoints".format(in_dataset=args.in_dataset, name=args.name)
     
     for test_epoch in test_epochs:
         cpts_dir = os.path.join(cpts_directory, "checkpoint_{epochs}.pth.tar".format(epochs=test_epoch))
@@ -214,7 +214,7 @@ def main():
 
         model.eval()
         model.cuda()
-        save_dir =  f"./activations/{args.in_dataset}/{args.name}/{args.exp_name}"
+        save_dir =  f"./experiments/{args.in_dataset}/{args.name}/activations"
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
         print("processing ID dataset")
