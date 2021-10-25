@@ -55,9 +55,9 @@ To run the experiments, you need to first download and place the datasets in the
 
 Here is an example for training on the ColorMNIST Dataset and OOD evaluation:
 ```bash
-python train_bg.py --gpu-ids 0 --in-dataset color_mnist --model resnet18 --epochs 30 --save-epoch 10 --data_label_correlation 0.45 --domain-num 8 --method erm --name erm_r_0_45 --exp-name cdann_r_0_45_2021-08-31
-python test_bg.py --gpu-ids 0 --in-dataset color_mnist --model resnet18 --test_epochs 30 --data_label_correlation 0.45 --method cdann --name cdann_r_0_45 --exp-name cdann_r_0_45_2021-08-31
-python present_results_py --in-dataset color_mnist --name cdann_r_0_45 --exp-name cdann_r_0_45_2021-08-31 --test_epochs 30
+python train_bg.py --gpu-ids 0 --in-dataset color_mnist --model resnet18 --epochs 30 --save-epoch 10 --data_label_correlation 0.45 --domain-num 8 --method erm --name erm_r_0_45 
+python test_bg.py --gpu-ids 0 --in-dataset color_mnist --model resnet18 --test_epochs 30 --data_label_correlation 0.45 --method cdann --name cdann_r_0_45 
+python present_results.py --in-dataset color_mnist --name cdann_r_0_45 --test_epochs 30
 ```
 Notes for some of the arguments:
 * `--data_label_correlation`: the correlation between labels and spurious feature (which is the background color here), as explained in the paper.
@@ -74,9 +74,9 @@ Notes for some of the arguments:
 
 A sample script to run model training and ood evaluation task on WaterBirds is as follows:
 ```bash
-python train_bg.py --gpu-ids 0 --in-dataset waterbird --model resnet18 --epochs 30 --save-epoch 10  --data_label_correlation 0.9 --domain-num 4 --method erm --name erm_r_0_9 --exp-name erm_r_0_9_2021-08-31
-python test_bg.py --gpu-ids 0 --in-dataset waterbird --model resnet18 --test_epochs 30 --data_label_correlation 0.9 --method erm --name erm_r_0_9 --exp-name erm_r_0_9_2021-08-31
-python present_results_py --in-dataset waterbird --name erm_r_0_9 --exp-name erm_r_0_9_2021-08-31 --test_epochs 30
+python train_bg.py --gpu-ids 0 --in-dataset waterbird --model resnet18 --epochs 30 --save-epoch 10  --data_label_correlation 0.9 --domain-num 4 --method erm --name erm_r_0_9
+python test_bg.py --gpu-ids 0 --in-dataset waterbird --model resnet18 --test_epochs 30 --data_label_correlation 0.9 --method erm --name erm_r_0_9
+python present_results.py --in-dataset waterbird --name erm_r_0_9--test_epochs 30
 ```
 Notes for some of the arguments:
 * `--data_label_correlation`: can be selected from [0.5, 0.7, 0.9].
@@ -86,9 +86,9 @@ Notes for some of the arguments:
 
 A sample script to run model training and ood evaluation task on CelebA is as follows:
 ```bash
-python train_bg.py --gpu-ids 0 --in-dataset celebA --model resnet18 --epochs 30 --save-epoch 10  --data_label_correlation 0.8 --domain-num 4 --method erm --name erm_r_0_8 --exp-name erm_r_0_8_2021-08-31
-python test_bg.py --gpu-ids 0 --in-dataset celebA --model resnet18 --test_epochs 30 --data_label_correlation 0.8 --method erm --name erm_r_0_8 --exp-name erm_r_0_8_2021-08-31
-python present_results_py --in-dataset waterbird --name erm_r_0_8 --exp-name erm_r_0_8_2021-08-31 --test_epochs 30
+python train_bg.py --gpu-ids 0 --in-dataset celebA --model resnet18 --epochs 30 --save-epoch 10  --data_label_correlation 0.8 --domain-num 4 --method erm --name erm_r_0_8
+python test_bg.py --gpu-ids 0 --in-dataset celebA --model resnet18 --test_epochs 30 --data_label_correlation 0.8 --method erm --name erm_r_0_8
+python present_results.py --in-dataset celebA --name erm_r_0_8 --test_epochs 30
 ```
 Notes for some of the arguments:
 * `--data_label_correlation`: the correlation for this experiment and can be selected from[0.7, 0.8].

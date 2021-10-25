@@ -73,9 +73,9 @@ def get_ood_activations(args, model, val_loader, epoch, log, method):
     activations_np = torch.tensor([])
 
     def save_activation(activations, mod, inp, out):
-        activations.append(inp[0]) 
+        activations.append(out) 
 
-    model.linear.register_forward_hook(partial(save_activation, activations))
+    model.avgpool.register_forward_hook(partial(save_activation, activations))
 
     model.eval()
     log.debug("######## Start collecting activations ########")
@@ -95,9 +95,9 @@ def get_id_activations(args, model, val_loader, epoch, log, method):
     activations_np = torch.tensor([])
 
     def save_activation(activations, mod, inp, out):
-        activations.append(inp[0]) 
+        activations.append(out) 
 
-    model.linear.register_forward_hook(partial(save_activation, activations))
+    model.avgpool.register_forward_hook(partial(save_activation, activations))
 
     model.eval()
     log.debug("######## Start collecting activations ########")
@@ -106,7 +106,7 @@ def get_id_activations(args, model, val_loader, epoch, log, method):
             images = images.cuda()
             _, outputs = model(images)
             
-            batchtivations = activations[-1].cpu() # get activations from this batch, filter by desired class/environment
+            batchtivations = activations[-1][(envs == 3)].cpu() # get activations from this batch, filter by desired class/environment
             activations_np = torch.cat([activations_np, batchtivations], axis=0) # add to final structure
             
         
@@ -186,6 +186,8 @@ def main():
     if args.in_dataset == "waterbird":
         val_dataset = WaterbirdDataset(data_correlation=args.data_label_correlation, split='test')
         val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=True)
+    elif args.in_dataset == "celebA":
+        val_loader = get_celebA_dataloader(args, split='test')
 
     # create model
     if args.model_arch == 'resnet18':
@@ -195,8 +197,10 @@ def main():
 
     test_epochs = args.test_epochs.split()
     if args.in_dataset == 'waterbird':
-        out_datasets = ['placesbg', 'SVHN']
+        out_datasets = ['placesbg', 'SVHN', 'iSUN', 'LSUN_resize']
         # out_datasets = ['gaussian', 'water', 'SVHN', 'iSUN', 'LSUN_resize', 'dtd']
+    elif args.in_dataset == 'celebA':
+        out_datasets = ['celebA_ood', 'SVHN', 'iSUN', 'LSUN_resize']
     
     cpts_directory = "./experiments/{in_dataset}/{name}/checkpoints".format(in_dataset=args.in_dataset, name=args.name)
     
@@ -223,12 +227,12 @@ def main():
         id_activs = get_id_activations(args, model, val_loader, test_epoch, log, method=args.method)
         with open(os.path.join(save_dir, f'activations_id_at_epoch_{test_epoch}.npy'), 'wb') as f:
             np.save(f, id_activs.cpu())
-        # for out_dataset in out_datasets:
-        #     print("processing OOD dataset ", out_dataset)
-        #     testloaderOut = get_ood_loader(args, out_dataset, args.in_dataset)
-        #     ood_activs = get_ood_activations(args, model, testloaderOut, test_epoch, log, method=args.method)
-        #     with open(os.path.join(save_dir, f'activations_{out_dataset}_at_epoch_{test_epoch}.npy'), 'wb') as f:
-        #         np.save(f, ood_activs.cpu())
+        for out_dataset in out_datasets:
+            print("processing OOD dataset ", out_dataset)
+            testloaderOut = get_ood_loader(args, out_dataset, args.in_dataset)
+            ood_activs = get_ood_activations(args, model, testloaderOut, test_epoch, log, method=args.method)
+            with open(os.path.join(save_dir, f'activations_{out_dataset}_at_epoch_{test_epoch}.npy'), 'wb') as f:
+                np.save(f, ood_activs.cpu())
 
 if __name__ == '__main__': 
     #--gpu-ids 0 --in-dataset waterbird --model resnet18 --test_epochs 30 --data_label_correlation 0.9 --method erm

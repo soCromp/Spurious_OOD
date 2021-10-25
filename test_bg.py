@@ -221,16 +221,19 @@ def getmask(top, dataset, name, epoch):
     file = os.path.join('experiments', dataset, name, 'activations/activations_id_at_epoch_{epoch}.npy'.format(epoch=epoch))
     with open(file, 'rb') as f:
         acs = np.load(f)
-    a = acs.mean(axis=0) # average ID activation pattern
+    a = acs.mean(axis=0).reshape([512]) # average ID activation pattern
 
     order = np.argsort(a) # find which units are most "important"/contributing
+    # print(order.shape, order.sum(), order[0], order[-1])
     
     topinds = order[-top:]  # get just the top of these units
+    topinds = topinds.reshape([top]).tolist()
+    # print(len(topinds), topinds[-2:])
     mask = np.zeros(a.shape, dtype=np.float64) # form a mask to only include top units
     mask[topinds] = 1.0
 
     mask = np.reshape(mask, [1, 512, 1, 1]) # to match with GAP layer output shape
-    print(mask.sum())
+    # print(mask.sum(), mask.shape)
     return torch.from_numpy(mask).float()
 
 def main():
@@ -266,7 +269,6 @@ def main():
 
     top = args.top
     mask = getmask(top, args.in_dataset, args.name, test_epochs[0]).cuda()
-
     
     if args.in_dataset == 'color_mnist':
         out_datasets = ['partial_color_mnist_0&1', 'gaussian', 'dtd', 'iSUN', 'LSUN_resize']
