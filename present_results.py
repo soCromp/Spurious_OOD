@@ -66,7 +66,7 @@ def print_results(s, results, in_dataset, out_dataset, name, method, top, epoch)
     s = s + ' {val:6.2f}'.format(val=100.*results['AUOUT'])
     s = s + '\n'
     print(s)
-    file = os.path.join('experiments', in_dataset, name, 'result_epoch_{epoch}_top_{top}.npy'.format(epoch=epoch, top=top))
+    file = os.path.join('experiments', in_dataset, name, 'result_epoch_{epoch}_top_{top}.txt'.format(epoch=epoch, top=top))
     with open(file, 'w') as f:
         f.write(s)
 
