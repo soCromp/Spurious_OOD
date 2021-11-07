@@ -1,20 +1,20 @@
 #!/bin/bash
 name=`date +"%Y-%m-%d_%H.%M.%S"`
-gpu=4
 data=$1
 corr=$2
+gpu=$3
 TS=(
     0
-    400
-    300
-    256
-    200
-    150
-    128
-    100
-    75
-    64
-    50
+    # 400
+    # # 300
+    # # 256
+    # 200
+    # # 150
+    # # 128
+    # 100
+    # # 75
+    # # 64
+    # 50
 )
 
 echo $name
@@ -23,7 +23,7 @@ python train_bg.py --gpu-ids $gpu --in-dataset $data --model resnet18 --epochs 3
 echo "Get activations"
 python get_activations.py --gpu-ids $gpu --in-dataset $data --model resnet18 --test_epochs 30 --data_label_correlation $corr --method erm --name $name  --root_dir datasets/ood_datasets 
 
-python compare_activations.py $data $name
+python compare_activations.py $data $name 30
 
 for t in "${TS[@]}"; do
     echo "TOP $t"
@@ -33,5 +33,5 @@ for t in "${TS[@]}"; do
     python present_results.py --in-dataset $data --name $name  --test_epochs 30 -t $t
 done
 
-# python notify.py
+python notify.py
 echo $name

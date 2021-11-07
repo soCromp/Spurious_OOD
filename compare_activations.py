@@ -6,9 +6,10 @@ dataset = sys.argv[1]
 name = sys.argv[2]
 spood = ''
 if dataset == 'waterbird':
-    spood = 'placesbg'
+    spood = 'water'
 if dataset == 'celebA':
     spood = 'celebA_ood'
+epoch = sys.argv[3]
 
 
 ida = np.ndarray([])
@@ -19,15 +20,15 @@ d = ''
 
 # read in activations
 
-with open(f'experiments/{dataset}/{name}/activations/activations_id_at_epoch_30.npy', 'rb') as f:
+with open(f'experiments/{dataset}/{name}/activations/activations_id_at_epoch_{epoch}_e0123.npy', 'rb') as f:
     idas = np.load(f) # id (waterbirds on water background)
 print('ID shape', idas.shape)
 
-with open(f'experiments/{dataset}/{name}/activations/activations_SVHN_at_epoch_30.npy', 'rb') as f:
+with open(f'experiments/{dataset}/{name}/activations/activations_SVHN_at_epoch_{epoch}.npy', 'rb') as f:
     hnas = np.load(f) # house numbers
 # print('NSP shape', hnas.shape)
 
-with open(f'experiments/{dataset}/{name}/activations/activations_{spood}_at_epoch_30.npy', 'rb') as f:
+with open(f'experiments/{dataset}/{name}/activations/activations_{spood}_at_epoch_{epoch}.npy', 'rb') as f:
     waas = np.load(f) # spoood (water without bird)
 # print('SP shape', waas.shape)
 

@@ -267,6 +267,7 @@ def main():
     if torch.cuda.device_count() > 1:
         base_model = torch.nn.DataParallel(base_model)
 
+    # print(base_model)
 
     if args.method == "erm":
         model = base_model.cuda()
