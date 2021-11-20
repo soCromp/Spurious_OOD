@@ -51,8 +51,9 @@ parser.add_argument('--multi-gpu', default=False, type=bool)
 parser.add_argument('--local_rank', default=-1, type=int,
                         help='rank for the current node')
 parser.add_argument('--top', '-t', default=0, type=int)
-parser.add_argument('--middle', '-m', default=0, type=int)
-parser.add_argument('--bottom', '-b', default=0, type=int)
+parser.add_argument('--custom_mask', '-cm', default=0, type=int, help='whether to use a specified custom mask. 0 means no, 1 means yes. Specity with cmb and cmt. If true, ignores top argument')
+parser.add_argument('--custom_mask_bottom', '-cmb', default = 200, type=int, help='In custom mask, everything before this unit is ignored')
+parser.add_argument('--custom_mask_top', '-cmt', default = 300, type=int, help='In custom mask, everything above this unit is ignored')
 parser.add_argument('--environment', '-env', default='0123', type=str)
 
 args = parser.parse_args()
@@ -110,11 +111,11 @@ def get_id_energy(args, model, val_loader, epoch, mask, log, method):
     NUM_ENV = 4
     all_preds = torch.tensor([])
     all_targets = torch.tensor([])
+    all_envs = torch.tensor([])
     energy = np.empty(0)
     energy_grey = np.empty(0)
     energy_nongrey = np.empty(0)
 
-    wanted_envir = 0
 
     def edit_activation(mask, mod, inp, out):
         return torch.mul(out, torch.tensor(mask, dtype=torch.float32).cuda())
@@ -131,6 +132,7 @@ def get_id_energy(args, model, val_loader, epoch, mask, log, method):
             
             _, outputs = model(images)
 
+            all_envs = torch.cat((all_envs, envs),dim=0)
             all_targets = torch.cat((all_targets, labels),dim=0)
             all_preds = torch.cat((all_preds, outputs.argmax(dim=1).cpu()),dim=0)
             prec1 = accuracy(outputs.cpu().data, labels, topk=(1,))[0]
@@ -162,7 +164,8 @@ def get_id_energy(args, model, val_loader, epoch, mask, log, method):
                     'gray hair M {env_E[3].val:.4f} ({env_E[3].avg:.4f})\t'.format(
                         epoch, i, len(val_loader), in_energy=in_energy, env_E = env_E))
         log.debug(' * Prec@1 {top1.avg:.3f}'.format(top1=top1))
-        return energy, energy_grey, energy_nongrey, top1.avg
+
+        return energy, energy_grey, energy_nongrey, all_envs, top1.avg
 
 
 def get_ood_loader(args, out_dataset, in_dataset = 'color_mnist'):
@@ -227,19 +230,27 @@ def getactivations(args):
     if args.model_arch == 'resnet18': shape = [1,512,1,1]
     elif args.model_arch == 'resnet50': shape = [1,2048,1,1]
 
-    if args.top == 0: return np.ones(shape)
+    if args.top == 0 and args.custom_mask == 0: return np.ones(shape)
     with open(f'experiments/{args.in_dataset}/{args.name}/activations/activations_id_at_epoch_{args.test_epochs}_e{args.environment}.npy', 'rb') as f:
         acs = np.load(f)
     
     a = acs.mean(axis=0) # average ID activation pattern
-    
     order = np.argsort(a) # find which units are most "important"/contributing
-    
-    topinds = order[-args.top:]  # get just the top of these units
     mask = np.zeros(a.shape) # form a mask to only include top units
-    mask[topinds] = 1
+
+    if args.custom_mask == 1:
+        lowerbound = args.custom_mask_bottom
+        upperbound = args.custom_mask_top
+        units = order[lowerbound:upperbound]
+        mask[units] = 1
+        print(units[:3])
+        
+    if args.top>0:
+        topinds = order[-args.top:]  # get just the top of these units
+        mask[topinds] = 1
 
     mask = np.reshape(mask, shape) # to match with GAP layer output shape
+    print(mask.sum(), 'used units')
     return mask
 
 
@@ -276,15 +287,13 @@ def main():
     model = model.cuda()
 
     top = args.top # use this many of the last units
-    mid = args.middle
-    bot = args.bottom
     mask = getactivations(args)
 
     test_epochs = args.test_epochs.split()
     if args.in_dataset == 'color_mnist':
         out_datasets = ['partial_color_mnist_0&1', 'gaussian', 'dtd', 'iSUN', 'LSUN_resize']
     elif args.in_dataset == 'waterbird':
-        out_datasets = ['placesbg', 'water', 'SVHN', 'iSUN', 'LSUN_resize']
+        out_datasets = ['placesbg', 'SVHN', 'iSUN']
         # out_datasets = ['gaussian', 'placesbg', 'water', 'SVHN', 'iSUN', 'LSUN_resize']#, 'dtd']
     elif args.in_dataset == 'color_mnist_multi':
         out_datasets = ['partial_color_mnist_0&1']
@@ -312,19 +321,33 @@ def main():
         save_dir =  f"./experiments/{args.in_dataset}/{args.name}/energy_results"
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
+        acc_dir =  f"./experiments/{args.in_dataset}/{args.name}/acc"
+        if not os.path.exists(acc_dir):
+            os.makedirs(acc_dir)
         print("processing ID dataset")
 
         #********** normal procedure **********
-        id_energy, _, _, acc  = get_id_energy(args, model, val_loader, test_epoch, mask, log, method=args.method)
-        with open(os.path.join(save_dir, f'id_test_acc_epoch_{test_epoch}_t{top}m{mid}b{bot}_e{args.environment}.txt'), 'w') as f:
+        id_energy, _, _, envs, acc  = get_id_energy(args, model, val_loader, test_epoch, mask, log, method=args.method)
+        
+        with open(os.path.join(acc_dir, f'id_test_acc_epoch_{test_epoch}_t{top}cm{args.custom_mask}b{args.custom_mask_bottom}t{args.custom_mask_top}_e{args.environment}.txt'), 'w') as f:
             f.write(str(acc)+'\n')
-        with open(os.path.join(save_dir, f'energy_score_at_epoch_{test_epoch}_top{top}_e{args.environment}.npy'), 'wb') as f:
-            np.save(f, id_energy)
+
+        envcombos = ['0', '1', '2', '3', '01', '23', '0123']
+        id_energyenv = []
+        for i in range(4):
+            id_energyenv.append(id_energy[envs==i])
+            
+        for c in envcombos:
+            print([int(n) for n in c.split()])
+            e = [id_energyenv[int(n)] for n in list(c)]
+            eall = np.concatenate(e)
+            with open(os.path.join(save_dir, f'energy_score_at_epoch_{test_epoch}_top{top}cm{args.custom_mask}b{args.custom_mask_bottom}t{args.custom_mask_top}_e{args.environment}_scoreenv{c}.npy'), 'wb') as f:
+                np.save(f, eall)
         for out_dataset in out_datasets:
             print("processing OOD dataset ", out_dataset)
             testloaderOut = get_ood_loader(args, out_dataset, args.in_dataset)
             ood_energy = get_ood_energy(args, model, testloaderOut, test_epoch, mask, log, method=args.method)
-            with open(os.path.join(save_dir, f'energy_score_{out_dataset}_at_epoch_{test_epoch}_top{top}_e{args.environment}.npy'), 'wb') as f:
+            with open(os.path.join(save_dir, f'energy_score_{out_dataset}_at_epoch_{test_epoch}_top{top}cm{args.custom_mask}b{args.custom_mask_bottom}t{args.custom_mask_top}_e{args.environment}.npy'), 'wb') as f:
                 np.save(f, ood_energy)
 
 if __name__ == '__main__':

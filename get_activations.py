@@ -50,6 +50,7 @@ parser.add_argument('--manualSeed', type=int, help='manual seed')
 parser.add_argument('--multi-gpu', default=False, type=bool)
 parser.add_argument('--local_rank', default=-1, type=int,
                         help='rank for the current node')
+parser.add_argument('--datasplit', default='train', help='Specify train for train data or test for test data', type=str)
 
 args = parser.parse_args()
 
@@ -198,7 +199,7 @@ def main():
 
 
     if args.in_dataset == "waterbird":
-        val_dataset = WaterbirdDataset(data_correlation=args.data_label_correlation, split='train')
+        val_dataset = WaterbirdDataset(data_correlation=args.data_label_correlation, split=args.datasplit)
         val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=True)
     elif args.in_dataset == "celebA":
         val_loader = get_celebA_dataloader(args, split='test')
@@ -236,6 +237,8 @@ def main():
         model.eval()
         model.cuda()
         save_dir =  f"./experiments/{args.in_dataset}/{args.name}/activations"
+        if args.datasplit == 'test':
+            save_dir = save_dir + '/test'
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
         print("processing ID dataset")
