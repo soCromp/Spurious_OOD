@@ -1,6 +1,5 @@
 #!/bin/bash
-name=2021-11-12_18.39.23
-# `date +"%Y-%m-%d_%H.%M.%S"`
+name=`date +"%Y-%m-%d_%H.%M.%S"`
 data=$1
 corr=$2
 gpu=$3
@@ -13,7 +12,7 @@ ENV=(
 
 echo $name
 echo "Train"
-# python train_bg.py --gpu-ids $gpu --in-dataset $data --model resnet18 --epochs 30 --save-epoch 30 --data_label_correlation $corr --domain-num 4 --method erm --name $name  --lr 0.001 --weight-decay 0.001
+python train_bg.py --gpu-ids $gpu --in-dataset $data --model resnet18 --epochs 30 --save-epoch 30 --data_label_correlation $corr --domain-num 4 --method erm --name $name  --lr 0.001 --weight-decay 0.001
 # echo "Get activations"
 # python get_activations.py --gpu-ids $gpu --in-dataset $data --model resnet18 --test_epochs 30 --data_label_correlation $corr --method erm --name $name  --root_dir datasets/ood_datasets 
 # python get_activations.py --gpu-ids $gpu --in-dataset $data --model resnet18 --test_epochs 30 --data_label_correlation $corr --method erm --name $name  --root_dir datasets/ood_datasets --datasplit test
@@ -21,10 +20,10 @@ echo "Train"
 # python compare_activations.py $data $name 30
 # python compare_group_activations.py $data $name
 
-# echo "Test all units"
-# python test_bg.py --gpu-ids $gpu --in-dataset $data --model resnet18 --test_epochs 30 --data_label_correlation $corr --method erm --name $name  --root_dir datasets/ood_datasets -cm 0
-# echo "Present results"
-# python present_results.py --in-dataset $data --name $name  --test_epochs 30 -cm 0
+echo "Test all units"
+python test_bg.py --gpu-ids $gpu --in-dataset $data --model resnet18 --test_epochs 30 --data_label_correlation $corr --method erm --name $name  --root_dir datasets/ood_datasets -cm 0
+echo "Present results"
+python present_results.py --in-dataset $data --name $name  --test_epochs 30 -cm 0
 
 python plot_energy.py $name $data
 
@@ -45,5 +44,5 @@ python plot_energy.py $name $data
 #     python present_results.py --in-dataset $data --name $name  --test_epochs 30 -env $e --top 100  -cm 1 -cmb 200 -cmt 300
 # done
 
-python notify.py
+python utils/notify.py
 echo $name

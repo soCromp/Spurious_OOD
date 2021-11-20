@@ -23,7 +23,7 @@ from datasets.gaussian_dataset import GaussianDataset
 
 parser = argparse.ArgumentParser(description='OOD Detection Evaluation based on Energy-score')
 parser.add_argument('--name', default = 'erm_rebuttal', type=str, help='help identify checkpoint')
-# parser.add_argument('--exp_name', '-n', default = 'erm_new_0.7', type=str, help='name of experiment')
+parser.add_argument('--exp_name', '-n', default = 'erm_new_0.7', type=str, help='name of experiment')
 parser.add_argument('--in-dataset', default="celebA", type=str, help='name of the in-distribution dataset')
 parser.add_argument('--root_dir', required = True, type=str, help='the root directory that contains the OOD test datasets')
 parser.add_argument('--model-arch', default='resnet18', type=str, help='model architecture e.g. resnet18')
@@ -73,15 +73,13 @@ if torch.cuda.is_available():
 device = torch.device(f"cuda" if torch.cuda.is_available() else "cpu")
 
 
-def get_ood_energy(args, model, val_loader, epoch, log, method, mask):
-    in_energy = AverageMeter()
-
+def get_ood_energy(args, model, val_loader, epoch, mask, log, method):
     def edit_activation(mask, mod, inp, out):
-        return torch.mul(mask, out)
+        return torch.mul(out, torch.tensor(mask, dtype=torch.float32).cuda())
 
     model.avgpool.register_forward_hook(partial(edit_activation, mask))
 
-
+    in_energy = AverageMeter()
     model.eval()
     init = True
     log.debug("######## Start collecting energy score ########")
@@ -255,9 +253,6 @@ def getactivations(args):
     print(mask.sum(), 'used units')
     return mask
 
-    mask = np.reshape(mask, [1, 512, 1, 1]) # to match with GAP layer output shape
-    # print(mask.sum(), mask.shape)
-    return torch.from_numpy(mask).float()
 
 def main():
 
@@ -298,17 +293,15 @@ def main():
     if args.in_dataset == 'color_mnist':
         out_datasets = ['partial_color_mnist_0&1', 'gaussian', 'dtd', 'iSUN', 'LSUN_resize']
     elif args.in_dataset == 'waterbird':
-        out_datasets = ['placesbg', 'SVHN', 'iSUN']
+        out_datasets = ['placesbg', 'water', 'SVHN', 'iSUN', 'LSUN_resize']
         # out_datasets = ['gaussian', 'placesbg', 'water', 'SVHN', 'iSUN', 'LSUN_resize']#, 'dtd']
     elif args.in_dataset == 'color_mnist_multi':
         out_datasets = ['partial_color_mnist_0&1']
     elif args.in_dataset == 'celebA':
         out_datasets = ['celebA_ood', 'SVHN', 'iSUN', 'LSUN_resize']
 
-    # if args.in_dataset == 'color_mnist':
-    cpts_directory = "./experiments/{in_dataset}/{name}/checkpoints".format(in_dataset=args.in_dataset, name=args.name)
-    # else:
-    #     cpts_directory = "./checkpoints/{in_dataset}/{name}/{exp}".format(in_dataset=args.in_dataset, name=args.name, exp=args.exp_name)
+    cpts_directory = "./experiments/{in_dataset}/{name}/checkpoints".format(in_dataset=args.in_dataset, name=args.name, exp=args.exp_name)
+    # cpts_directory = "/nobackup/sonic/checkpoints/waterbird_temp/gdro_r_0_9/".format(in_dataset=args.in_dataset, name=args.name, exp=args.exp_name)
     
     for test_epoch in test_epochs:
         cpts_dir = os.path.join(cpts_directory, "checkpoint_{epochs}.pth.tar".format(epochs=test_epoch))
@@ -359,4 +352,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-

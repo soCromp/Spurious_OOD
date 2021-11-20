@@ -24,7 +24,7 @@ def main():
     if args.in_dataset == "color_mnist" or args.in_dataset == "color_mnist_multi":
         out_datasets = ['partial_color_mnist_0&1', 'gaussian', 'dtd', 'iSUN', 'LSUN_resize']
     elif args.in_dataset == "waterbird":
-        out_datasets = ['placesbg', 'SVHN', 'iSUN']
+        out_datasets = ['placesbg', 'water', 'SVHN', 'iSUN', 'LSUN_resize']
         # out_datasets = ['placesbg', 'SVHN', 'iSUN', 'LSUN_resize', ] #'dtd']
     elif args.in_dataset == "celebA":
         out_datasets = ['celebA_ood', 'SVHN', 'iSUN', 'LSUN_resize']

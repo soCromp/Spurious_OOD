@@ -16,10 +16,6 @@ from datasets.cub_dataset import get_waterbird_dataloader
 from datasets.celebA_dataset import get_celebA_dataloader
 import math
 
-import sys
-sys.path.insert(0, './DomainBed/domainbed')
-import algorithms
-
 parser = argparse.ArgumentParser(description=' use resnet (pretrained)')
 
 parser.add_argument('--in-dataset', default="celebA", type=str, choices = ['celebA', 'color_mnist', 'waterbird'], help='in-distribution dataset e.g. IN-9')
@@ -49,8 +45,8 @@ parser.add_argument('--weight-decay', '--wd', default=0.005, type=float,
 parser.add_argument('--data_label_correlation', default=0.9, type=float,
                     help='data_label_correlation')
 # saving, naming and logging
-# parser.add_argument('--exp-name', default = 'erm_new_0.9', type=str, 
-#                     help='help identify checkpoint')
+parser.add_argument('--exp-name', default = 'erm_new_0.9', type=str, 
+                    help='help identify checkpoint')
 parser.add_argument('--name', default="erm_rebuttal", type=str,
                     help='name of experiment')
 parser.add_argument('--log_name', type = str, default = "info.log",
@@ -78,7 +74,7 @@ args = parser.parse_args()
 
 state = {k: v for k, v in args._get_kwargs()}
 
-directory = "./experiments/{in_dataset}/{name}/checkpoints/".format(in_dataset=args.in_dataset, 
+directory = "experiments/{in_dataset}/{name}/checkpoints".format(in_dataset=args.in_dataset, 
             name=args.name)
 os.makedirs(directory, exist_ok=True)
 save_state_file = os.path.join(directory, 'args.txt')
@@ -107,7 +103,7 @@ set_random_seed(args.manualSeed)
 def flatten(list_of_lists):
     return itertools.chain.from_iterable(list_of_lists)
 
-def train(model, train_loaders, alg, epoch, log):
+def train(model, train_loaders, criterion, optimizer, epoch, log):
     """Train for one epoch on the training set"""
     batch_time = AverageMeter()
 
@@ -124,27 +120,15 @@ def train(model, train_loaders, alg, epoch, log):
         len_dataloader += len(x)
     while True:
         for loader in train_loaders:
-            input, target, group = next(loader, (None, None, None))
+            input, target, _ = next(loader, (None, None, None))
             if input is None:
                 return
             input = input.cuda()
             target = target.cuda()
-            group = group.cuda()
 
-            # _, nat_output = model(input)
+            _, nat_output = model(input)
             
-            # nat_loss = criterion(nat_output, target)
-
-            minibatches = []
-            for g in range(4):
-                inp = input[group==g]
-                tar = target[group==g]
-                minibatches.append([inp,tar])
-
-            # minibatch = [[input, target]]
-            result = alg.update(minibatches)
-            nat_loss = result['loss']
-            nat_output = result['output']
+            nat_loss = criterion(nat_output, target)
 
             # measure accuracy and record loss
             nat_prec1 = accuracy(nat_output.data, target, topk=(1,))[0]
@@ -154,9 +138,9 @@ def train(model, train_loaders, alg, epoch, log):
             # compute gradient and do SGD step
             loss = nat_loss
 
-            # optimizer.zero_grad()
-            # loss.backward()
-            # optimizer.step()
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
 
             # measure elapsed time
             batch_time.update(time.time() - end)
@@ -171,7 +155,7 @@ def train(model, train_loaders, alg, epoch, log):
                         loss=nat_losses, top1=nat_top1))
             batch_idx += 1
 
-def validate(val_loader, model, alg, epoch, log, method):
+def validate(val_loader, model, criterion, epoch, log, method):
     """Perform validation on the validation set"""
     batch_time = AverageMeter()
     losses = AverageMeter()
@@ -185,13 +169,8 @@ def validate(val_loader, model, alg, epoch, log, method):
             input = input.cuda()
             target = target.cuda()
             # compute output
-            # _, output = model(input)
-            # loss = criterion(output, target)
-
-            minibatch = [[input, target]]
-            result = alg.validate(minibatch)
-            loss = result['loss']
-            output = result['output']
+            _, output = model(input)
+            loss = criterion(output, target)
 
             # measure accuracy and record loss
             prec1 = accuracy(output.data, target, topk=(1,))[0]
@@ -273,8 +252,6 @@ def main():
         model = base_model.cuda()
         criterion = nn.CrossEntropyLoss().cuda()
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
-        alg_class = algorithms.get_algorithm_class('ERM')
-        alg = alg_class(model, optimizer, criterion)
     else:
         assert False, 'Not supported method: {}'.format(args.method)
     
@@ -298,8 +275,8 @@ def main():
     for epoch in range(args.start_epoch, args.epochs):
         print(f"Start training epoch {epoch}")
         adjust_learning_rate(args, optimizer, epoch)
-        train(model, train_loaders, alg, epoch, log) 
-        prec1 = validate(val_loader, model, alg, epoch, log, args.method)
+        train(model, train_loaders, criterion, optimizer, epoch, log) 
+        prec1 = validate(val_loader, model, criterion, epoch, log, args.method)
         if (epoch + 1) % args.save_epoch == 0:
             save_checkpoint(args, {
                     'epoch': epoch + 1,
@@ -307,3 +284,4 @@ def main():
             }, epoch + 1) 
 if __name__ == '__main__':
     main()
+    
