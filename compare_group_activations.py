@@ -47,35 +47,32 @@ plt.title(f'activation by group, resnet18 on {dataset} train\ngroup 1 (water)-so
 plt.savefig(f'./experiments/{dataset}/{name}/groupactivs1.png') 
 plt.clf()
 
-# allactivsc = []
-# c = [] # index i is average activation for group i
+#ordering by contribution to all environments, each example weighted equally 
+order = np.argsort(np.concatenate(allactivs).mean(axis=0))
+print('tog', order.shape)
 
-# for i in ['01','23']:
-#     with open(f'./experiments/waterbird/{exp}/activations/activations_id_at_epoch_30_e{i}.npy', 'rb') as f:
-#         allactivsc.append(np.load(f))
-#     c.append(allactivsc[-1].mean(axis=0))
-#     print(allactivsc[-1].shape, c[-1].shape)
+plt.plot(range(n), a[0][order], 'o', ms=1.5, label='landbird, land', color='green')
+plt.plot(range(n), a[1][order], 'o', ms=1.5, label='landbird, water', color='chartreuse')
+plt.plot(range(n), a[2][order], 'o', ms=1.5, label='waterbird, land', color = 'plum')
+plt.plot(range(n), a[3][order], 'o', ms=1.5, label='waterbird, water', color = 'blue')
+plt.xlabel('unit')
+plt.legend(loc="upper left", markerscale=5, fontsize=12)
+plt.title(f'activation by group, resnet18 on {dataset} train\nall group-sorted (example equal weight), exp ' + name)
 
-# n = a[0].shape[0]
+plt.savefig(f'./experiments/{dataset}/{name}/groupactivsAll_perex.png') 
+plt.clf()
 
-# order = np.argsort(c[0])
+#ordering by contribution to all environments, each group weighted equally
+order = np.argsort( (a[0] + a[1] + a[2] + a[3]) / 4 )
+print('tog', order.shape)
 
-# plt.plot(range(n), c[0][order], 'o', ms=1.5, label='landbird')
-# plt.plot(range(n), c[1][order], 'o', ms=1.5, label='waterbird')
-# plt.xlabel('unit')
-# plt.legend(loc="upper left", markerscale=5, fontsize=12)
-# plt.title('activation by class, resnet18 on waterbird 0.9, land-sorted')
+plt.plot(range(n), a[0][order], 'o', ms=1.5, label='landbird, land', color='green')
+plt.plot(range(n), a[1][order], 'o', ms=1.5, label='landbird, water', color='chartreuse')
+plt.plot(range(n), a[2][order], 'o', ms=1.5, label='waterbird, land', color = 'plum')
+plt.plot(range(n), a[3][order], 'o', ms=1.5, label='waterbird, water', color = 'blue')
+plt.xlabel('unit')
+plt.legend(loc="upper left", markerscale=5, fontsize=12)
+plt.title(f'activation by group, resnet18 on {dataset} train\nall group-sorted (group equal weight), exp ' + name)
 
-# plt.savefig(f'plot0class_bad.png') 
-# plt.clf()
-
-# order = np.argsort(c[1])
-
-# plt.plot(range(n), c[0][order], 'o', ms=1.5, label='landbird')
-# plt.plot(range(n), c[1][order], 'o', ms=1.5, label='waterbird')
-
-# plt.xlabel('unit')
-# plt.legend(loc="upper left", markerscale=5, fontsize=12)
-# plt.title('activation by class, resnet18 on waterbird 0.9, water-sorted')
-
-# plt.savefig(f'plot1class_bad.png') 
+plt.savefig(f'./experiments/{dataset}/{name}/groupactivsAll_pergr.png') 
+plt.clf()

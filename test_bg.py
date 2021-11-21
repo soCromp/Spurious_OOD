@@ -104,6 +104,10 @@ def get_ood_energy(args, model, val_loader, epoch, mask, log, method):
 def get_id_energy(args, model, val_loader, epoch, mask, log, method):
     in_energy = AverageMeter()
     top1 = AverageMeter()
+    acc_E = {0:AverageMeter(),
+            1: AverageMeter(),
+            2: AverageMeter(),
+            3: AverageMeter() }
     env_E = {0:AverageMeter(),
             1: AverageMeter(),
             2: AverageMeter(),
@@ -127,9 +131,9 @@ def get_id_energy(args, model, val_loader, epoch, mask, log, method):
     with torch.no_grad():
         for i, (images, labels, envs) in enumerate(val_loader):
 
-            images = images.cuda() #[envs==0]
-            labels = labels #[envs==0]
-            
+            images = images.cuda() 
+            labels = labels 
+
             _, outputs = model(images)
 
             all_envs = torch.cat((all_envs, envs),dim=0)
@@ -140,12 +144,14 @@ def get_id_energy(args, model, val_loader, epoch, mask, log, method):
             e_s = -torch.logsumexp(outputs, dim=1)
             e_s = e_s.data.cpu().numpy() 
             for j in range(NUM_ENV):
-                env_E[j].update(e_s.mean(), len(labels))  #since already filtered these
-                # env_E[j].update(e_s[envs == j].mean(), len(labels[envs == j]))
+                numingroup = len(labels[envs == j])
+                if numingroup == 0: continue
+                env_E[j].update(e_s[envs == j].mean(), numingroup)
+                correct = accuracy(outputs.cpu().data[envs == j], labels[envs == j], topk=(1,))[0]
+                acc_E[j].update(correct, numingroup)
             in_energy.update(e_s.mean(), len(labels)) 
             energy = np.concatenate((energy, e_s))
-            # energy_grey = np.concatenate((energy_grey, e_s[labels == 1]))
-            # energy_nongrey = np.concatenate((energy_nongrey, e_s[labels == 0]))
+
             if i % args.print_freq == 0:
                 if args.in_dataset == 'color_mnist': 
                     log.debug('Epoch: [{0}] Batch#[{1}/{2}]\t'
@@ -163,9 +169,9 @@ def get_id_energy(args, model, val_loader, epoch, mask, log, method):
                     'gray hair F {env_E[2].val:.4f} ({env_E[2].avg:.4f})\t'
                     'gray hair M {env_E[3].val:.4f} ({env_E[3].avg:.4f})\t'.format(
                         epoch, i, len(val_loader), in_energy=in_energy, env_E = env_E))
-        log.debug(' * Prec@1 {top1.avg:.3f}'.format(top1=top1))
+        log.debug(' * Prec@1 {top1.avg:.3f}. Group 0: {e[0].avg}, 1: {e[1].avg}, 2: {e[2].avg}, 3: {e[3].avg}'.format(top1=top1, e=acc_E))
 
-        return energy, energy_grey, energy_nongrey, all_envs, top1.avg
+        return energy, energy_grey, energy_nongrey, all_envs, top1.avg, acc_E
 
 
 def get_ood_loader(args, out_dataset, in_dataset = 'color_mnist'):
@@ -327,10 +333,14 @@ def main():
         print("processing ID dataset")
 
         #********** normal procedure **********
-        id_energy, _, _, envs, acc  = get_id_energy(args, model, val_loader, test_epoch, mask, log, method=args.method)
+        id_energy, _, _, envs, acc, acc_E  = get_id_energy(args, model, val_loader, test_epoch, mask, log, method=args.method)
         
         with open(os.path.join(acc_dir, f'id_test_acc_epoch_{test_epoch}_t{top}cm{args.custom_mask}b{args.custom_mask_bottom}t{args.custom_mask_top}_e{args.environment}.txt'), 'w') as f:
-            f.write(str(acc)+'\n')
+            f.write('Overall\t' + str(acc.item())+'\n\n')
+            f.write('Env 0\t' + str(acc_E[0].avg.item())+'\n')
+            f.write('Env 1\t' + str(acc_E[1].avg.item())+'\n')
+            f.write('Env 2\t' + str(acc_E[2].avg.item())+'\n')
+            f.write('Env 3\t' + str(acc_E[3].avg.item())+'\n\n')
 
         envcombos = ['0', '1', '2', '3', '01', '23', '0123']
         id_energyenv = []
