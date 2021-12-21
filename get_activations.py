@@ -215,7 +215,7 @@ def main():
 
     test_epochs = args.test_epochs.split()
     if args.in_dataset == 'waterbird':
-        out_datasets = ['water', 'SVHN']
+        out_datasets = ['placesbg', 'SVHN']
         # out_datasets = ['gaussian', 'water', 'SVHN', 'iSUN', 'LSUN_resize', 'dtd']
     elif args.in_dataset == 'celebA':
         out_datasets = ['celebA_ood', 'SVHN']

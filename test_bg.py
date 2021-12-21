@@ -55,6 +55,7 @@ parser.add_argument('--custom_mask', '-cm', default=0, type=int, help='whether t
 parser.add_argument('--custom_mask_bottom', '-cmb', default = 200, type=int, help='In custom mask, everything before this unit is ignored')
 parser.add_argument('--custom_mask_top', '-cmt', default = 300, type=int, help='In custom mask, everything above this unit is ignored')
 parser.add_argument('--environment', '-env', default='0123', type=str)
+parser.add_argument('--dice', '-d', default=0, type=int, help='starting percentile of last weights to keep')
 
 args = parser.parse_args()
 
@@ -272,6 +273,8 @@ def main():
     log.addHandler(fileHandler)
     log.addHandler(streamHandler) 
 
+    test_epochs = args.test_epochs.split()
+    cpts_directory = "./experiments/{in_dataset}/{name}/checkpoints".format(in_dataset=args.in_dataset, name=args.name, exp=args.exp_name)
 
     if args.in_dataset == "color_mnist":
         val_loader = get_biased_mnist_dataloader(args, root = './datasets/MNIST', batch_size=args.batch_size,
@@ -285,8 +288,35 @@ def main():
         val_loader = get_celebA_dataloader(args, split='test')
 
     # create model
+    activation = None
+    if args.dice > 0:
+        # get weights
+        cpts_dir = os.path.join(cpts_directory, "checkpoint_{epochs}.pth.tar".format(epochs=test_epochs[0]))
+        checkpoint = torch.load(cpts_dir)
+        state_dict = checkpoint['state_dict_model']
+        w = state_dict['linear.weight'].cpu().numpy()
+
+        all_activ = []
+        # with open(f'experiments/{args.in_dataset}/{args.name}/activations/activations_id_at_epoch_{args.test_epochs}_e01.npy', 'rb') as f:
+        #     all_activ.append(np.load(f))
+        # with open(f'experiments/{args.in_dataset}/{args.name}/activations/activations_id_at_epoch_{args.test_epochs}_e23.npy', 'rb') as f:
+        #     all_activ.append(np.load(f))
+        # activation = np.concatenate([a.mean(axis=0).reshape((1,512)) for a in all_activ], axis=0)
+        with open(f'experiments/{args.in_dataset}/{args.name}/activations/activations_id_at_epoch_{args.test_epochs}_e0.npy', 'rb') as f:
+            all_activ.append(np.load(f))
+        with open(f'experiments/{args.in_dataset}/{args.name}/activations/activations_id_at_epoch_{args.test_epochs}_e1.npy', 'rb') as f:
+            all_activ.append(np.load(f))
+        with open(f'experiments/{args.in_dataset}/{args.name}/activations/activations_id_at_epoch_{args.test_epochs}_e2.npy', 'rb') as f:
+            all_activ.append(np.load(f))
+        with open(f'experiments/{args.in_dataset}/{args.name}/activations/activations_id_at_epoch_{args.test_epochs}_e3.npy', 'rb') as f:
+            all_activ.append(np.load(f))
+        activation = np.concatenate([all_activ[0].mean(axis=0).reshape((1,512)) + all_activ[1].mean(axis=0).reshape((1,512)),
+                                    all_activ[2].mean(axis=0).reshape((1,512)) + all_activ[3].mean(axis=0).reshape((1,512))], axis=0)
+        activation = np.multiply(w, activation)
+        print(activation.shape)
     if args.model_arch == 'resnet18':
-        model = load_model()
+        model = load_model(dice=args.dice, activation=activation)
+        print(model.linear.weight.shape)
     elif args.model_arch == 'resnet50':
         model = load_model(arch='resnet50')
 
@@ -295,18 +325,18 @@ def main():
     top = args.top # use this many of the last units
     mask = getactivations(args)
 
-    test_epochs = args.test_epochs.split()
+    
     if args.in_dataset == 'color_mnist':
         out_datasets = ['partial_color_mnist_0&1', 'gaussian', 'dtd', 'iSUN', 'LSUN_resize']
     elif args.in_dataset == 'waterbird':
-        out_datasets = ['placesbg', 'SVHN', 'iSUN']
+        out_datasets = ['placesbg', 'SVHN', 'iSUN', 'LSUN_resize']
         # out_datasets = ['gaussian', 'placesbg', 'water', 'SVHN', 'iSUN', 'LSUN_resize']#, 'dtd']
     elif args.in_dataset == 'color_mnist_multi':
         out_datasets = ['partial_color_mnist_0&1']
     elif args.in_dataset == 'celebA':
         out_datasets = ['celebA_ood', 'SVHN', 'iSUN', 'LSUN_resize']
 
-    cpts_directory = "./experiments/{in_dataset}/{name}/checkpoints".format(in_dataset=args.in_dataset, name=args.name, exp=args.exp_name)
+    # cpts_directory = "./experiments/{in_dataset}/{name}/checkpoints".format(in_dataset=args.in_dataset, name=args.name, exp=args.exp_name)
     # cpts_directory = "/nobackup/sonic/checkpoints/waterbird_temp/gdro_r_0_9/".format(in_dataset=args.in_dataset, name=args.name, exp=args.exp_name)
     
     for test_epoch in test_epochs:
@@ -327,7 +357,7 @@ def main():
         save_dir =  f"./experiments/{args.in_dataset}/{args.name}/energy_results"
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
-        acc_dir =  f"./experiments/{args.in_dataset}/{args.name}/acc"
+        acc_dir =  f"./experiments/{args.in_dataset}/{args.name}/accuracy"
         if not os.path.exists(acc_dir):
             os.makedirs(acc_dir)
         print("processing ID dataset")
@@ -335,7 +365,8 @@ def main():
         #********** normal procedure **********
         id_energy, _, _, envs, acc, acc_E  = get_id_energy(args, model, val_loader, test_epoch, mask, log, method=args.method)
         
-        with open(os.path.join(acc_dir, f'id_test_acc_epoch_{test_epoch}_t{top}cm{args.custom_mask}b{args.custom_mask_bottom}t{args.custom_mask_top}_e{args.environment}.txt'), 'w') as f:
+        # with open(os.path.join(acc_dir, f'id_test_acc_epoch_{test_epoch}_d{args.dice}t{top}cm{args.custom_mask}b{args.custom_mask_bottom}t{args.custom_mask_top}_e{args.environment}.txt'), 'w') as f:
+        with open(os.path.join(acc_dir, f'id_test_acc_epoch_{test_epoch}_d{args.dice}.txt'), 'w') as f:
             f.write('Overall\t' + str(acc.item())+'\n\n')
             f.write('Env 0\t' + str(acc_E[0].avg.item())+'\n')
             f.write('Env 1\t' + str(acc_E[1].avg.item())+'\n')
@@ -351,13 +382,15 @@ def main():
             print([int(n) for n in c.split()])
             e = [id_energyenv[int(n)] for n in list(c)]
             eall = np.concatenate(e)
-            with open(os.path.join(save_dir, f'energy_score_at_epoch_{test_epoch}_top{top}cm{args.custom_mask}b{args.custom_mask_bottom}t{args.custom_mask_top}_e{args.environment}_scoreenv{c}.npy'), 'wb') as f:
+            # with open(os.path.join(save_dir, f'energy_score_at_epoch_{test_epoch}__d{args.dice}top{top}cm{args.custom_mask}b{args.custom_mask_bottom}t{args.custom_mask_top}_e{args.environment}_scoreenv{c}.npy'), 'wb') as f:
+            with open(os.path.join(save_dir, f'energy_score_at_epoch_{test_epoch}_d{args.dice}_scoreenv{c}.npy'), 'wb') as f:
                 np.save(f, eall)
         for out_dataset in out_datasets:
             print("processing OOD dataset ", out_dataset)
             testloaderOut = get_ood_loader(args, out_dataset, args.in_dataset)
             ood_energy = get_ood_energy(args, model, testloaderOut, test_epoch, mask, log, method=args.method)
-            with open(os.path.join(save_dir, f'energy_score_{out_dataset}_at_epoch_{test_epoch}_top{top}cm{args.custom_mask}b{args.custom_mask_bottom}t{args.custom_mask_top}_e{args.environment}.npy'), 'wb') as f:
+            # with open(os.path.join(save_dir, f'energy_score_{out_dataset}_at_epoch_{test_epoch}__d{args.dice}top{top}cm{args.custom_mask}b{args.custom_mask_bottom}t{args.custom_mask_top}_e{args.environment}.npy'), 'wb') as f:
+            with open(os.path.join(save_dir, f'energy_score_{out_dataset}_at_epoch_{test_epoch}_d{args.dice}.npy'), 'wb') as f:
                 np.save(f, ood_energy)
 
 if __name__ == '__main__':

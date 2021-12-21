@@ -2,6 +2,7 @@ import torch
 import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
+from models.route import RouteDICE
 
 model_urls = {
     'resnet18': 'https://download.pytorch.org/models/resnet18-f37072fd.pth',
@@ -57,7 +58,7 @@ class BasicBlock(nn.Module):
         return out
 
 class ResNet(nn.Module):
-    def __init__(self, block, num_blocks, num_classes=2):
+    def __init__(self, block, num_blocks, num_classes=2, dice=0, activation=None):
         super(ResNet, self).__init__()
         self.in_planes = 64
 
@@ -74,6 +75,8 @@ class ResNet(nn.Module):
         self.layer3 = self._make_layer(block, 256, num_blocks[2], stride=2)
         self.layer4 = self._make_layer(block, 512, num_blocks[3], stride=2)
         self.linear = nn.Linear(512*block.expansion, num_classes)
+        if dice > 0:
+            self.linear = RouteDICE(512*block.expansion, num_classes, topk=dice, info=activation)
         
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
     
@@ -144,11 +147,11 @@ class ResNet(nn.Module):
 format = {'resnet18':[2,2,2,2], 'resnet34':[3,4,6,3], 'resnet50':[3,4,6,3]}
 
 
-def load_model(pretrained = False, arch='resnet18'):
+def load_model(pretrained = False, arch='resnet18', dice=0, activation=None):
     '''
     load resnet
     '''
-    torch_model = ResNet(BasicBlock, format[arch], num_classes=2)
+    torch_model = ResNet(BasicBlock, format[arch], num_classes=2, dice=dice, activation=activation)
     # arch = 'resnet18'
     if pretrained:
         model_dict = torch_model.state_dict()

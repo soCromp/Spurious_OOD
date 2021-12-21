@@ -13,7 +13,7 @@ output_dir = '/u/s/o/sonic/private/Spurious_OOD/datasets'
 
 target_places = [
     ['bamboo_forest', 'forest/broadleaf'],  # Land backgrounds
-    ['ocean', 'lake/natural']]              # Water backgrounds
+    ['ocean', 'lake']]              # Water backgrounds
 
 val_frac = 0.2             # What fraction of the training data to use as validation
 confounder_strength = 0.9    # Determines relative size of majority vs. minority groups
